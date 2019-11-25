@@ -9,12 +9,15 @@ Created on Fri Nov 22 17:08:34 2019
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import shutil
+import glob
 
 from os import listdir
 from os.path import isfile, join
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import gc; gc.enable() # memory is tight
+from sklearn.externals import joblib
 
 # Diretory for labels
 train_image_dir_l = 'C:\\Users\\Abhi\\Desktop\\KITTI\\DATA_DIR\\training\\label_2'
@@ -24,12 +27,15 @@ train_image_dir_l = 'C:\\Users\\Abhi\\Desktop\\KITTI\\DATA_DIR\\training\\label_
 train_image_dir = 'C:\\Users\\Abhi\\Desktop\\KITTI\\DATA_DIR\\training\\image_2'
 
 
+#Creating a lists of images
 
-
-images =  [(train_image_dir+f) for f in listdir(train_image_dir) if isfile(join(train_image_dir, f))]
+images =  [(train_image_dir +'/' +f) for f in listdir(train_image_dir) if isfile(join(train_image_dir, f))]
 masks = [(train_image_dir_l+f) for f in listdir(train_image_dir_l) if isfile(join(train_image_dir_l, f))]
 
-
+l=0
+for x in images:
+    images[l] = x.replace(os.sep, '/')
+    l+=1
 
 '''for f in listdir(train_image_dir_l):
       fo = open("f.txt", "r")
@@ -41,7 +47,7 @@ masks = [(train_image_dir_l+f) for f in listdir(train_image_dir_l) if isfile(joi
               df_train['masks'] = 1
           else:
             df_train['masks'] = 0'''
-
+#Creating lists of labels for Cyclist
 labels=[]
 for data in listdir(train_image_dir_l):
       obj_name = 'Cyclist'
@@ -53,7 +59,7 @@ for data in listdir(train_image_dir_l):
       else:
             labels.append(0)
 masks = labels      
-df = pd.DataFrame(np.column_stack([images, masks]), columns=['images', 'masks'])
+#df = pd.DataFrame(np.column_stack([images, masks]), columns=['images', 'masks'])
 
 '''df1 = df.sort_values(by='images')['images'].reset_index()
 # df1 = df.sort_values(by='a')['a']
@@ -62,11 +68,40 @@ df2 = df.sort_values(by='masks')['masks'].reset_index()
 df['images'] = df1['images']
 df['masks'] = df2['masks']
 del df1, df2'''
+  
+
+#Dividing training data for validation only    
+X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size = 0.25, shuffle = False)
+             
+#df_train, df_val = train_test_split(df, test_size=0.25, shuffle=False)
+
+
+
+
+
+#Creating the directories for pos and neg
+
+k=0
+for i in y_train:
+      fromDirectory = X_train[k]
+      if i ==1:
+            toDirectory = "C:/Users/Abhi/Desktop/KITTI/DATA_DIR/train_dir/pos"
+      else:
+            toDirectory = "C:/Users/Abhi/Desktop/KITTI/DATA_DIR/train_dir/neg"
+      shutil.copy(fromDirectory, toDirectory)
+      k+=1
+
+k1 = 0
+for i in y_test:
+      from1Directory = X_test[k1]
+      if i ==1:
+            to1Directory = "C:/Users/Abhi/Desktop/KITTI/DATA_DIR/test_dir/pos"
+      else:
+            to1Directory = "C:/Users/Abhi/Desktop/KITTI/DATA_DIR/test_dir/neg"
+      shutil.copy(from1Directory, to1Directory)
+      k1 = k1+1
       
-
-                  
-df_train, df_val = train_test_split(df, test_size=0.25, shuffle=False)
-
+      
 pos=0
 neg = 0
 
@@ -113,7 +148,41 @@ classifier.compile(optimizer = 'adam', loss = 'binary_crossentropy', metrics = [
 
 
 from keras.preprocessing.image import ImageDataGenerator
-from keras.utils.np_utils import to_categorical
+
+
+
+train_datagen = ImageDataGenerator(rescale = 1./255,
+                                   shear_range = 0.2,
+                                   zoom_range = 0.2,
+                                   horizontal_flip = True)
+
+test_datagen = ImageDataGenerator(rescale = 1./255)
+
+training_set = train_datagen.flow_from_directory('C:/Users/Abhi/Desktop/KITTI/DATA_DIR/train_dir',
+                                                 target_size = (64, 64),
+                                                 batch_size = 32,
+                                                 class_mode = 'binary')
+
+test_set = test_datagen.flow_from_directory('C:/Users/Abhi/Desktop/KITTI/DATA_DIR/test_dir',
+                                            target_size = (64, 64),
+                                            batch_size = 32,
+                                            class_mode = 'binary')
+
+classifier.fit_generator(training_set,
+                         samples_per_epoch = 5610,
+                         nb_epoch = 50,
+                         validation_data = test_set,
+                         nb_val_samples = 1871)
+
+model_path = "C:\\Users\\Abhi\\Desktop\\KITTI\\DATA_DIR\\cnn.model"
+if not os.path.isdir(os.path.split(model_path)[0]):
+      os.makedirs(os.path.split(model_path)[0])
+
+
+joblib.dump(classifier, model_path )
+
+
+'''from keras.utils.np_utils import to_categorical
 
 
 y_train = to_categorical(y_train, num_classes = None)
@@ -144,65 +213,11 @@ for e in range(epochs):
         if batches >= len(x_train) / 32:
             # we need to break the loop by hand because
             # the generator loops indefinitely
-            break
+            break'''
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-'''
-from keras.preprocessing.image import ImageDataGenerator
-
-train_datagen = ImageDataGenerator(rescale = 1./255,
-                                   shear_range = 0.2,
-                                   zoom_range = 0.2,
-                                   horizontal_flip = True)
-
-test_datagen = ImageDataGenerator(rescale = 1./255)
-
-training_set = train_datagen.flow_from_directory('dataset/training_set',
-                                                 target_size = (64, 64),
-                                                 batch_size = 32,
-                                                 class_mode = 'binary')
-
-test_set = test_datagen.flow_from_directory('dataset/test_set',
-                                            target_size = (64, 64),
-                                            batch_size = 32,
-                                            class_mode = 'binary')
-
-classifier.fit_generator(training_set,
-                         samples_per_epoch = 8000,
-                         nb_epoch = 25,
-                         validation_data = test_set,
-                         nb_val_samples = 2000)'''
 
 
       
